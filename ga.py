@@ -9,9 +9,9 @@ H, W = (50, 50)
 R = [5, 10]
 UE = [x/2 for x in R] # UE = [2.5, 5]
 cell_W, cell_H = (10, 10) # size of a cell
-no_cells = W / cell_W * H / cell_H
+no_cells = W / cell_W * H / cell_H # number of cell in this AoI
 
-targets = []
+targets = [] 
 
 for h in range(int(abs(H/cell_H))):
     for w in range(int(abs(W/cell_W))):
@@ -86,7 +86,7 @@ class ObjectiveFunction(object):
                         min_dist_sensor = min(min_dist_sensor, self._distance(a, b)/(R[case[ia]]*R[case[ib]]))
 
             ## 3s/3 objective 
-            obj = (len(covered)/no_cells ) * (max(max_noS) - min(min_noS) + 1)/(len(used) - min(min_noS) + 1) * min_dist_sensor/max(self.diagonal)
+            obj = (math.pow(len(covered), 10)/no_cells ) * (max(max_noS) - min(min_noS) + 1)/(len(used) - min(min_noS) + 1) * min_dist_sensor/max(self.diagonal)
             # ---- NEff/ number of cells---------------------- 1/ SensorCost----------------------- MD()
             
             if obj > best_sol:
@@ -110,7 +110,7 @@ class GeneticAlgorithms(object):
         #self.size = random.randint(min(min_noS), max(max_noS))
         self.size = 15
 
-        self.population = list()
+        self.population = list() # []
         self.history = list()
 
     def _random_selection(self):
@@ -146,12 +146,13 @@ class GeneticAlgorithms(object):
             if gen[1][0] > fitness[1][0]:
                 fitness = gen
 
-        return gen
+        return fitness
 
 
     def _selection(self, new_population, tourn_size):
         list_tourn = random.sample(new_population, tourn_size)
         selector = self._get_best(list_tourn)
+        self.population.remove(selector)
         return selector        
 
     def _crossover(self, parent1, parent2):
@@ -162,18 +163,21 @@ class GeneticAlgorithms(object):
         rand_pos = random.randint(0, num-1)
         for i in range(rand_pos, num):
             sensor_parent1[i] = sensor_parent2[i]
+            sensor_parent2[i] = sensor_parent1[i]
 
-
-        fitness = self._obj_func.get_fitness(sensor_parent1)
+        fitness1 = self._obj_func.get_fitness(sensor_parent1)
+        fitness2 = self._obj_func.get_fitness(sensor_parent2)
         #parent1[0] = sensor_parent1
-        child = (sensor_parent1, fitness)
-        return parent1
+        child1 = (sensor_parent1, fitness1)
+        child2 = (sensor_parent2, fitness2)
+        return child1, child2
 
     def _mutation(self, gen, rate):
         for i in range(len(gen[0])):
             if random.random() < rate:
                 gen[0][i][0] = gen[0][i][0] + self.BW * random.random()
                 gen[0][i][1] = gen[0][i][1] + self.BW * random.random()
+        return gen
 
 
     def run(self, steps=100):
@@ -181,34 +185,42 @@ class GeneticAlgorithms(object):
         generation = 0
         for i in range(steps):
             # NEW_POPULATION
-            new_population = list()
+            tmp_population = list()
             pop_size = len(self.population)
             elitism_num = pop_size // 2
 
-
+            new_population = list()
             #Elitism
-            for _ in range(elitism_num):
-                best_gen = self._get_best(self.population)
-                new_population.append(best_gen)
-                self.population.remove(best_gen)
+            # for _ in range(elitism_num):
+            #     best_gen = self._get_best(self.population)
+            #     tmp_population.append(best_gen)
+            #     self.population.remove(best_gen)
 
             # Crossover
             for _ in range(elitism_num, pop_size):
-                parent1 = self._selection(new_population, 10)
-                parent2 = self._selection(new_population, 10)
-                child = self._crossover(parent1, parent2)
-                new_population.append(child)
+                parent1 = self._selection(self.population, len(self.population))
+                parent2 = self._selection(self.population, len(self.population))
+
+                if random.random() < self.p_c:
+                    child1, child2 = self._crossover(parent1, parent2)
+                    new_population.append(child1)
+                    new_population.append(child2)
+                else:
+                    new_population.append(parent1)
+                    new_population.append(parent2)
+                    # self.population.remove(parent1)
+                    # self.population.remove(parent2)
 
             # Mutation 
-            for i in range(elitism_num, pop_size):
-                self._mutation(new_population[i], self.p_m)
+            for i in range(0, pop_size):
+               new_population[i] = self._mutation(new_population[i], self.p_m)
             
             self.population = new_population
             generation+=1
             
             best_gen = self._get_best(self.population)
             print("gen", generation, " with best =", best_gen[1][0], "cover: ", best_gen[1][1][0],
-             " used: ", best_gen[1][1][1])
+             " used: ", best_gen[1][1][1], "type: ", best_gen[1][1][2])
         
 
 obj = ObjectiveFunction(targets=targets)
