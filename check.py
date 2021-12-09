@@ -5,6 +5,7 @@ import copy
 import math
 from itertools import product
 import numpy as np
+
 H, W = (50, 50)
 R = [5, 10]
 UE = [x/2 for x in R] # UE = [2.5, 5]
@@ -15,8 +16,9 @@ targets = []
 
 for h in range(int(abs(H/cell_H))):
     for w in range(int(abs(W/cell_W))):
-        targets.append((w * cell_W + cell_W/2, h * cell_H + cell_H/2)) # target is located at center of each cell.
 
+        targets.append((w * cell_W + cell_W/2, h * cell_H + cell_H/2)) # target is located at center of each cell.
+nOT = len(targets)
 lower = [(ue, ue) for ue in UE] # lower x, lower y =  Rsi - UE
 upper = [(H - l[0], W - l[1]) for l in lower]
 
@@ -138,6 +140,10 @@ class GeneticAlgorithms(object):
 
         self.population = list() # []
         self.history = list()
+        
+        self.best_ratio = 0.0
+
+        self.final_results = []
 
     def _random_selection(self):
         if random.random() < 0.8:
@@ -175,11 +181,12 @@ class GeneticAlgorithms(object):
         return fitness
 
 
-    def _selection(self, new_population, tourn_size):
-        list_tourn = random.sample(new_population, tourn_size)
-        selector = self._get_best(list_tourn)
-        self.population.remove(selector)
-        return selector        
+    def _selection(self, new_population):
+        selector1 = self._get_best(new_population)
+        new_population.remove(selector1)
+        selector2 = self._get_best(new_population)
+        new_population.remove(selector2)
+        return (selector1, selector2)       
 
     def _crossover(self, parent1, parent2):
         sensor_parent1 = parent1[0]
@@ -276,41 +283,87 @@ class GeneticAlgorithms(object):
 
 
     def run(self, steps=100):
+        # self._initialize(self.pop_size, self.size)
+        # generation = 0
+        # for i in range(steps):
+        #     # NEW_POPULATION
+        #     tmp_population = list()
+        #     pop_size = len(self.population)
+        #     elitism_num = pop_size // 2
+
+        #     new_population = list()
+
+        #     # Crossover
+        #     for _ in range(elitism_num, pop_size):
+        #         parent1 = self._selection(self.population, len(self.population))
+        #         parent2 = self._selection(self.population, len(self.population))
+
+        #         if random.random() < self.p_c:
+        #             # child1, child2 = self._crossover(parent1, parent2)
+        #             child1, child2 = self._crossoverTwoSlice(parent1, parent2)
+        #             new_population.append(child1)
+        #             new_population.append(child2)
+        #         else:
+        #             new_population.append(parent1)
+        #             new_population.append(parent2)
+
+
+        #     # Mutation 
+        #     for i in range(0, pop_size):
+        #        new_population[i] = self._mutation(new_population[i], self.p_m)
+            
+        #     self.population = new_population
+        #     generation+=1
+            
+        #     best_gen = self._get_best(self.population)
+        #     print("gen", generation, " with best =", best_gen[1][0], "cover: ", best_gen[1][1][0],
+        #      " used: ", best_gen[1][1][1], "type: ", best_gen[1][1][2])
+        def take_obj(gen):
+            return gen[1][0]
         self._initialize(self.pop_size, self.size)
         generation = 0
+        pop_size = len(self.population)
+        elitism_num = pop_size // 2
         for i in range(steps):
             # NEW_POPULATION
-            tmp_population = list()
-            pop_size = len(self.population)
-            elitism_num = pop_size // 2
 
-            new_population = list()
+            new_population = self.population.copy()
+            #print(len(new_population))
 
-            # Crossover
             for _ in range(elitism_num, pop_size):
-                parent1 = self._selection(self.population, len(self.population))
-                parent2 = self._selection(self.population, len(self.population))
+                parent1, parent2 = self._selection(new_population)
+                #parent2 = self._selection(new_population)
 
-                if random.random() < self.p_c:
-                    # child1, child2 = self._crossover(parent1, parent2)
+                if random.random() < 0.8:
                     child1, child2 = self._crossoverTwoSlice(parent1, parent2)
-                    new_population.append(child1)
-                    new_population.append(child2)
-                else:
-                    new_population.append(parent1)
-                    new_population.append(parent2)
+                    child1 = self._mutation(child1, self.p_m)
+                    child2 = self._mutation(child2, self.p_m)
+                    # print(child1[1][0])
+                    # print(child2[1][0])
+                    self.population.append(child1)
+                    self.population.append(child2)
 
+            #print(len(self.population))
+            self.population.sort(key=take_obj, reverse=True)
+            #self.population.reverse()
+            self.population = self.population[0:pop_size]
 
-            # Mutation 
-            for i in range(0, pop_size):
-               new_population[i] = self._mutation(new_population[i], self.p_m)
+            # for index in range(50):
+            #     print(self.population[index][1][0])
             
-            self.population = new_population
+            
             generation+=1
             
-            best_gen = self._get_best(self.population)
+            #best_gen1 = self._get_best(self.population)
+            best_gen = self.population[0]
+            self.final_results.append(best_gen[1][0])
+
+            if self.best_ratio < (best_gen[1][1][0]/nOT):
+                self.best_ratio = (best_gen[1][1][0]/nOT)
             print("gen", generation, " with best =", best_gen[1][0], "cover: ", best_gen[1][1][0],
-             " used: ", best_gen[1][1][1], "type: ", best_gen[1][1][2])
+             " used: ", best_gen[1][1][1], "coverage ratio: ", best_gen[1][1][0]/nOT) # , "type: ", best_gen[1][1][2]
+
+            print("BEST: {}__________BEST COVERAGE RATIO: {}____".format(best_gen[1][0], self.best_ratio))
         
 
 obj = ObjectiveFunction(targets=targets)
